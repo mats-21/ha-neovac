@@ -476,6 +476,51 @@ class NeoVacApiClient:
         }
         return await self._request("GET", url, params=params)
 
+    async def get_autarky(
+        self,
+        unit_id: str,
+        start_date: str,
+        end_date: str,
+        resolution: str = "Monthly",
+    ) -> dict[str, Any] | None:
+        """Get the apartment's electricity split into grid and solar (ZEV).
+
+        The response has invoicePeriods[-1] with:
+        - totalConsumption: total electricity of the apartment (kWh)
+        - photovoltaicConsumption: the part supplied by the building's solar
+          plant (kWh)
+        Both cover the requested window, so pass the invoice period start as
+        start_date to get period totals. Grid consumption is
+        totalConsumption - photovoltaicConsumption.
+        """
+        url = f"{MYENERGY_USAGE_UNITS_URL}/{unit_id}/autarky"
+        params = {
+            "resolution": resolution,
+            "startdate": start_date,
+            "enddate": end_date,
+        }
+        return await self._request("GET", url, params=params)
+
+    async def get_zev_photovoltaic(
+        self,
+        unit_id: str,
+        start_date: str,
+        end_date: str,
+        resolution: str = "Monthly",
+    ) -> dict[str, Any] | None:
+        """Get solar production and self-consumption of the whole building.
+
+        invoicePeriods[-1] has powerGeneration and powerConsumption (kWh),
+        both for the requested window.
+        """
+        url = f"{MYENERGY_USAGE_UNITS_URL}/{unit_id}/zev/photovoltaic"
+        params = {
+            "resolution": resolution,
+            "startdate": start_date,
+            "enddate": end_date,
+        }
+        return await self._request("GET", url, params=params)
+
     async def get_comparison_settings(
         self, unit_id: str
     ) -> list[dict[str, Any]]:

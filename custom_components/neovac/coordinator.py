@@ -16,7 +16,9 @@ from homeassistant.helpers.update_coordinator import (
 
 from .api import NeoVacApiClient, NeoVacAuthError, NeoVacConnectionError
 from .const import (
+    CATEGORY_AUTARKY,
     CATEGORY_ELECTRICITY,
+    CATEGORY_ZEV_PV,
     CONF_DEBUG_LOGGING,
     CONF_SCAN_INTERVAL,
     CONF_SCAN_INTERVAL_ELECTRICITY,
@@ -149,6 +151,18 @@ class NeoVacCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return float(total)
         return None
 
+    @staticmethod
+    def _invoice_period_start(category_data: dict[str, Any] | None) -> str | None:
+        """Return the start of the latest invoice period as 'YYYY-MM-DD HH:MM'."""
+        if not isinstance(category_data, dict):
+            return None
+        periods = category_data.get("invoicePeriods")
+        if isinstance(periods, list) and periods:
+            start = periods[-1].get("startDate")
+            if isinstance(start, str) and len(start) >= 16:
+                return f"{start[:10]} {start[11:16]}"
+        return None
+
     async def _fetch_all_data(self) -> dict[str, Any]:
         """Fetch all data from the API."""
         result: dict[str, Any] = {
@@ -181,7 +195,8 @@ class NeoVacCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ", ".join(self._available_categories),
                 )
 
-        result["available_categories"] = self._available_categories
+        # Copy: the grid/solar pseudo-categories are appended per update below.
+        result["available_categories"] = list(self._available_categories)
 
         # Previous data for change detection
         previous_categories: dict[str, Any] = {}
@@ -323,6 +338,36 @@ class NeoVacCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     category,
                     err,
                 )
+
+        # Grid/solar split of the apartment and the building's solar plant.
+        # Both endpoints return sums for the requested window, so they are
+        # queried from the start of the invoice period (taken from the
+        # Electricity data) to get period totals.
+        if CATEGORY_ELECTRICITY in self._available_categories:
+            period_start = self._invoice_period_start(
+                result["categories"].get(CATEGORY_ELECTRICITY)
+            )
+            if period_start:
+                for category, fetcher in (
+                    (CATEGORY_AUTARKY, self.client.get_autarky),
+                    (CATEGORY_ZEV_PV, self.client.get_zev_photovoltaic),
+                ):
+                    try:
+                        data = await fetcher(
+                            self.unit_id, period_start, end_date
+                        )
+                    except NeoVacAuthError:
+                        raise
+                    except Exception as err:
+                        _LOGGER.warning(
+                            "Failed to fetch %s: %s", category, err
+                        )
+                        data = None
+                    if data is None:
+                        data = previous_categories.get(category)
+                    if data is not None:
+                        result["categories"][category] = data
+                        result["available_categories"].append(category)
 
         # Record when non-electricity categories were last fetched
         if fetch_other:

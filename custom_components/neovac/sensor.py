@@ -14,6 +14,7 @@ starts -- matching SensorStateClass.TOTAL_INCREASING semantics.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CATEGORY_AUTARKY,
+    CATEGORY_ZEV_PV,
     CATEGORY_COLD_WATER,
     CATEGORY_COOLING,
     CATEGORY_ELECTRICITY,
@@ -51,6 +54,46 @@ class NeoVacSensorEntityDescription(SensorEntityDescription):
     """Describes a NeoVac sensor entity."""
 
     category: str
+    # Optional: compute the value from the category data instead of
+    # invoicePeriods[-1].sum (used for the grid/solar split sensors).
+    value_fn: Callable[[dict[str, Any]], float | None] | None = None
+
+
+def _last_period(data: dict[str, Any]) -> dict[str, Any]:
+    """Return the latest invoice period of a response, or an empty dict."""
+    periods = data.get("invoicePeriods")
+    if isinstance(periods, list) and periods and isinstance(periods[-1], dict):
+        return periods[-1]
+    return {}
+
+
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _solar_consumption(data: dict[str, Any]) -> float | None:
+    """Apartment electricity supplied by the building's solar plant (kWh)."""
+    return _number(_last_period(data).get("photovoltaicConsumption"))
+
+
+def _grid_consumption(data: dict[str, Any]) -> float | None:
+    """Apartment electricity taken from the grid (kWh): total minus solar."""
+    period = _last_period(data)
+    total = _number(period.get("totalConsumption"))
+    solar = _number(period.get("photovoltaicConsumption"))
+    if total is None or solar is None:
+        return None
+    return max(total - solar, 0.0)
+
+
+def _building_production(data: dict[str, Any]) -> float | None:
+    """Solar energy produced by the whole building's plant (kWh)."""
+    return _number(_last_period(data).get("powerGeneration"))
+
+
+def _building_self_consumption(data: dict[str, Any]) -> float | None:
+    """Solar energy consumed inside the building (kWh)."""
+    return _number(_last_period(data).get("powerConsumption"))
 
 
 # Sensor descriptions for each energy category.
@@ -110,6 +153,48 @@ SENSOR_DESCRIPTIONS: tuple[NeoVacSensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=2,
+    ),
+    # Grid/solar split of the apartment (from the /autarky endpoint).
+    NeoVacSensorEntityDescription(
+        key="electricity_grid",
+        translation_key="electricity_grid",
+        category=CATEGORY_AUTARKY,
+        value_fn=_grid_consumption,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=2,
+    ),
+    NeoVacSensorEntityDescription(
+        key="electricity_solar",
+        translation_key="electricity_solar",
+        category=CATEGORY_AUTARKY,
+        value_fn=_solar_consumption,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=2,
+    ),
+    # Solar plant of the whole building (from the /zev/photovoltaic endpoint).
+    NeoVacSensorEntityDescription(
+        key="building_solar_production",
+        translation_key="building_solar_production",
+        category=CATEGORY_ZEV_PV,
+        value_fn=_building_production,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=1,
+    ),
+    NeoVacSensorEntityDescription(
+        key="building_solar_self_consumption",
+        translation_key="building_solar_self_consumption",
+        category=CATEGORY_ZEV_PV,
+        value_fn=_building_self_consumption,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        suggested_display_precision=1,
     ),
 )
 
@@ -257,6 +342,9 @@ class NeoVacSensor(CoordinatorEntity[NeoVacCoordinator], SensorEntity):
 
         if category_data is None:
             return None
+
+        if self.entity_description.value_fn is not None:
+            return self.entity_description.value_fn(category_data)
 
         value = _extract_period_total(
             category_data,

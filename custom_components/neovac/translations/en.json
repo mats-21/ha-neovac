@@ -73,6 +73,18 @@
       },
       "cooling": {
         "name": "Cooling consumption"
+      },
+      "electricity_grid": {
+        "name": "Electricity grid consumption"
+      },
+      "electricity_solar": {
+        "name": "Electricity solar (ZEV) consumption"
+      },
+      "building_solar_production": {
+        "name": "Building solar production"
+      },
+      "building_solar_self_consumption": {
+        "name": "Building solar self-consumption"
       }
     }
   }

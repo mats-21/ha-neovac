@@ -112,6 +112,25 @@ Depending on your metering setup, the integration creates some or all of these s
 | Cold water consumption | `water` | m³ | Water consumption |
 | Heating consumption | `energy` | kWh | Gas consumption |
 | Cooling consumption | `energy` | kWh | Individual device |
+| Electricity grid consumption | `energy` | kWh | Grid consumption |
+| Electricity solar (ZEV) consumption | `energy` | kWh | Solar / individual device |
+| Building solar production | `energy` | kWh | (informational) |
+| Building solar self-consumption | `energy` | kWh | (informational) |
+
+### Grid / solar split (ZEV)
+
+The plain *Electricity consumption* sensor is the **total** of the apartment (grid + solar from the building's ZEV).
+For properties in a ZEV (Zusammenschluss zum Eigenverbrauch) the integration additionally reads the
+`/autarky` and `/zev/photovoltaic` endpoints that the MyEnergy web app uses:
+
+- **Electricity solar (ZEV) consumption** = `photovoltaicConsumption`, the part of your electricity supplied by the building's solar plant.
+- **Electricity grid consumption** = `totalConsumption - photovoltaicConsumption`.
+- **Building solar production / self-consumption** = production and in-house use of the whole plant.
+
+Use the *grid* and *solar* sensors in the Energy Dashboard, **not** the total sensor together with them, otherwise the
+solar part is counted twice. These sensors only appear when the API returns the data for your unit; they are created at
+setup, so restart the integration (or Home Assistant) if the endpoints were unavailable at the first start.
+All sums are for the current invoice period and reset when a new one starts.
 
 ## Troubleshooting
 

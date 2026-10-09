@@ -49,6 +49,12 @@ CATEGORY_HEAT_PUMP = "HeatPump"
 CATEGORY_CHARGING_STATION = "ChargingStation"
 CATEGORY_ZEV = "Zev"
 
+# Pseudo-categories for data that does not come from /consumption/{category}:
+#   /autarky              -> apartment electricity split into grid and solar (ZEV)
+#   /zev/photovoltaic     -> solar production and self-consumption of the whole building
+CATEGORY_AUTARKY = "Autarky"
+CATEGORY_ZEV_PV = "ZevPhotovoltaic"
+
 # Resolution values for the consumption endpoint
 # The API uses adverb-style strings: Hourly, Daily, Monthly, Yearly, QuarterHourly
 RESOLUTION_QUARTER_HOUR = "QuarterHourly"
