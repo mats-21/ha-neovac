@@ -3,10 +3,10 @@
   "name": "NeoVac MyEnergy",
   "codeowners": [],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["recorder"],
   "documentation": "https://git.jensen.ovh/florian/ha-neovac",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

@@ -151,3 +151,13 @@ All sums are for the current invoice period and reset when a new one starts.
 - Check the configured polling interval in the integration options
 - The NeoVac API provides data with hourly resolution at best
 - New data may take some time to appear in the NeoVac system
+
+## Hourly statistics (`neovac:*`)
+
+Since 0.2.0 the integration also writes hourly long-term statistics, every 30 minutes (first run 60 s after start):
+`neovac:strom_netzbezug`, `neovac:strom_solar`, `neovac:pv_produktion_haus`, `neovac:pv_eigenverbrauch_haus`,
+`neovac:wasser_kalt`, `neovac:wasser_warm`, `neovac:waerme`.
+
+It continues where the last stored statistic ends and only writes complete hours, so the Energy dashboard stays
+correct even when Home Assistant was switched off for a while (the sensors alone would book the whole gap into
+the hour of the next update). Use these statistics in the Energy dashboard instead of the sensors.

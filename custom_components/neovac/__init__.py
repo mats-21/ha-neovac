@@ -7,9 +7,11 @@ the Home Assistant Energy Dashboard.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
 from .api import NeoVacApiClient
 from .const import (
@@ -19,8 +21,11 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import NeoVacCoordinator
+from .statistics import NeoVacStatisticsImporter
 
 _LOGGER = logging.getLogger(__name__)
+
+STATISTICS_INTERVAL = timedelta(minutes=30)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -53,6 +58,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Forward setup to sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Hourly long-term statistics (neovac:*), correct even after Home Assistant was off.
+    importer = NeoVacStatisticsImporter(hass, client, coordinator.unit_id)
+    entry.async_on_unload(
+        async_track_time_interval(hass, importer.async_update, STATISTICS_INTERVAL)
+    )
+    entry.async_on_unload(async_call_later(hass, 60, importer.async_update))
 
     # Listen for options updates
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
