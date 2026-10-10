@@ -90,6 +90,19 @@ class StatisticsHelpers(unittest.TestCase):
         h8 = datetime(2026, 10, 10, 8)
         self.assertEqual(S.cumulative({h8: 1.5}, None, 0.0), [(h8, 1.5)])
 
+    def test_update_accepts_timestamp_argument(self):
+        """HA's time helpers call the action with the current time."""
+        import asyncio, inspect
+        sig = inspect.signature(S.NeoVacStatisticsImporter.async_update)
+        self.assertEqual(len(sig.parameters), 2)  # self, _now
+        imp = S.NeoVacStatisticsImporter(None, None, "1")
+
+        async def noop():
+            return None
+
+        imp._run = noop
+        asyncio.run(imp.async_update(datetime(2026, 10, 10, 12)))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -142,7 +142,8 @@ class NeoVacStatisticsImporter:
         self._unit_id = unit_id
         self._lock = asyncio.Lock()
 
-    async def async_update(self) -> None:
+    async def async_update(self, _now: datetime | None = None) -> None:
+        """Run one import. Accepts the timestamp that the HA time helpers pass in."""
         if self._lock.locked():
             return
         async with self._lock:
